@@ -75,4 +75,40 @@ resource "aws_route" "public_internet_gateway" {
   gateway_id             = aws_internet_gateway.igw.id
 }
 
+#Create elastic ip address
 
+resource "aws_eip" "nat" {
+  domain = "vpc"
+}
+
+#Create nat gateway 
+resource "aws_nat_gateway" "NAT" {
+  subnet_id     = aws_subnet.public[0].id
+  allocation_id = aws_eip.nat.id
+  tags = {
+    Name = "gw NAT"
+  }
+}
+# Create private route table
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name      = "${var.vpc_name}-private"
+    ManagedBy = "Terraform"
+  }
+}
+
+#Private route
+resource "aws_route_table_association" "private" {
+  count          = length(var.private_subnets)
+  subnet_id      = aws_subnet.private[0].id
+  route_table_id = aws_route_table.private.id
+}
+
+# Route traffic from private subnets to the NAT gateway
+resource "aws_route" "private_nat_gateway" {
+  route_table_id         = aws_route_table.private.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.NAT.id
+}
